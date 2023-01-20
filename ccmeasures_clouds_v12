@@ -1,0 +1,84 @@
+#!/bin/bash
+#
+###################################
+# for SLES12
+###################################
+CDEFINEFLAGS="-DMERRA_FLAG -DDAS_FLAG -DCOARSE_GRID_FLAG -DFINE_GRID_FLAG -DDEEP_CLOUDS"
+#CDEFINEFLAGS="-DMERRA_FLAG -DDAS_FLAG -DCOARSE_GRID_FLAG -DFINE_GRID_FLAG -DDEEP_CLOUDS -DVERBOSE"
+#CDEFINEFLAGS="-DMERRA_FLAG -DDAS_FLAG -DCOARSE_GRID_FLAG -DFINE_GRID_FLAG -DBOER_RAM_CLOUDS"
+#CDEFINEFLAGS="-DMERRA_FLAG -DDAS_FLAG -DCOARSE_GRID_FLAG -DFINE_GRID_FLAG -DBOER_RAM_CLOUDS -DVERBOSE"
+#
+
+#CAPE_PATH="$HOME/misc_tools/thermo/emanuel_code" 
+#MISC_PATH="$HOME/misc_tools"
+#TIME_PATH="$HOME/misc_tools/time"
+#SOL_PATH="$HOME/misc_tools/solar"
+#GRID_PATH="$HOME/misc_tools/grid"
+#THRM_PATH="$HOME/misc_tools/thermo"
+#DAS_PATH="$HOME/misc_tools/das"
+#CLD_PATH="$HOME/misc_tools/clouds"
+#MASK_PATH="$HOME/misc_tools/land_water_masks"
+#MOD_PATH="$HOME/modis/tools"
+#AMSR_PATH="$HOME/AMSR-E/tools"
+#MERR_PATH="$HOME/MERRA/tools"
+
+CAPE_PATH="."
+MISC_PATH="."
+TIME_PATH="."
+SOL_PATH="."
+GRID_PATH="."
+THRM_PATH="."
+DAS_PATH="."
+CLD_PATH="."
+MASK_PATH="."
+MOD_PATH="."
+AMSR_PATH="."
+MERR_PATH="."
+
+####### on belmac #######
+#HDF_INCLUDE=-I/usr/local/hdf/hdf4/include
+#HDF_LIBRARY=-L/usr/local/hdf/hdf4/lib
+#NCDF_INCLUDE=-I/usr/local/include
+#NCDF_LIBRARY=-L/usr/local/lib
+#########################
+
+###### on Discover ######
+#HDF_INCLUDE=-I/usr/local/other/SLES11/hdf4/4.2.6/intel-11.1.038/include
+#HDF_LIBRARY=-L/usr/local/other/SLES11/hdf4/4.2.6/intel-11.1.038/lib
+#NCDF_INCLUDE=-I/usr/local/other/SLES11/netcdf/4.1.3/intel-11.1.038/include
+#NCDF_LIBRARY=-L/usr/local/other/SLES11/netcdf/4.1.3/intel-11.1.038/lib
+#HDF_INCLUDE=-I/usr/local/other/SLES11.1/hdf4/4.2.6/gnu-4.8.1/include
+#HDF_LIBRARY=-L/usr/local/other/SLES11.1/hdf4/4.2.6/gnu-4.8.1/lib
+#NCDF_INCLUDE=-I/usr/local/other/SLES11.1/netcdf/4.1.3/gnu-4.8.1/include
+#NCDF_LIBRARY=-L/usr/local/other/SLES11.1/netcdf/4.1.3/gnu-4.8.1/lib
+#SZIP_LIBRARY=-L/usr/local/other/SLES11.1/szip/2.1/gnu-4.8.1/lib
+HDF_INCLUDE=-I/usr/local/other/hdf/4.2.15/gcc-4.8.5/include
+HDF_LIBRARY=-L/usr/local/other/hdf/4.2.15/gcc-4.8.5/lib
+#########################
+
+CFLAGS=
+#CHDFLINKFLAGS="-lmfhdf -ldf -ljpeg -lz -lm -lsz"
+CHDFLINKFLAGS="-lmfhdf -ldf -ljpeg -lz -lm"
+CNCDFLINKFLAGS="-lnetcdf"
+CFORTRANLINKFLAGS="-lgfortran"
+gfortran -c $CAPE_PATH/calcsound_emw.f
+gcc -c $MISC_PATH/misc_tools.c
+cc -c $TIME_PATH/time_tools.c
+cc -c $SOL_PATH/solar.c
+cc -c $GRID_PATH/grid.c
+cc -c $THRM_PATH/thermo.c
+cc -c $DAS_PATH/das.c $CDEFINEFLAGS
+cc -c $CLD_PATH/clouds.c
+cc -c $MASK_PATH/mask.c
+cc -c $MOD_PATH/MOD06.c $HDF_INCLUDE
+cc -c $MOD_PATH/MOD08.c $HDF_INCLUDE
+cc -c $MOD_PATH/MOD02.c $HDF_INCLUDE
+cc -c $AMSR_PATH/amsr.c $HDF_INCLUDE
+cc -c $MERR_PATH/merra2.c $CDEFINEFLAGS `nc-config --cflags`
+cc -c measures.c
+cc -c measures_main_v12.c $CDEFINEFLAGS `nc-config --cflags` $HDF_INCLUDE
+cc calcsound_emw.o misc_tools.o time_tools.o solar.o grid.o thermo.o das.o clouds.o mask.o MOD06.o \
+			MOD08.o MOD02.o amsr.o merra2.o measures.o measures_main_v12.o `nc-config --libs` \
+			$HDF_LIBRARY $CHDFLINKFLAGS
+rm *.o
+mv a.out ~/bin/measures_clouds_deep

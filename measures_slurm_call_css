@@ -1,0 +1,102 @@
+#!/usr/local/other/python/GEOSpyD/2019.10_py3.7/2020-01-15/bin/python
+#
+# about 9 hours per year for deep (Roca/Ram thresholds)
+# request --time-min=10:00:00 for this experiment
+# about 12 hours per year for Boer and Ram thresholds
+#
+#SBATCH --job-name=meas_clouds_deep_2003a
+#SBATCH --constraint="cas&cssro"
+#SBATCH --nodes=1 --ntasks=46
+#SBATCH --time=12:00:00
+#SBATCH --time-min=10:00:00
+#SBATCH --qos=allnccs
+#SBATCH -o output.%j
+#SBATCH -e error.%j
+#SBATCH --account=s2063
+#SBATCH --chdir=/discover/nobackup/projects/cloudclass/measures_deep/
+
+#to get the second group of 100 files
+#tail -n +101 myd06list | head -100 >myd06list_test100_2
+#to mix up the input files:
+#awk 'NR % 65 == 1' myd06list >myd06list_test112R
+
+#to concatenate all of the output:
+# cmd = "ls {0}modis_clouds* | grep '............'.${CASEID}.nc | ncrcat -H -o {1}test.nc".format(outpath,outpath)
+
+ncpus = 46
+listfile="myd06list"
+#outpath_root="/discover/nobackup/ewilcox"
+outpath_root="/discover/nobackup/projects/cloudclass/measures_deep"
+#outpath="/home/ewilcox/NASA_measures/run_dir/"
+#yrlist = [2005,2011]
+#yrlist = [2012,2013,2014,2015,2016,2017,2018,2019]
+yrlist = [2003]
+#mnlist = [1,2,3,4,5,6,7,8,9,10,11,12]
+mnlist = [1,2,3,4,5,6]
+#mnlist = [7,8,9,10,11,12]
+create_list_flag = 1 #Note that creating the lists failed under slurm, but worked when run on login node. UPDATE: I think this was because /ccs not mounted on compute nodes previously.
+exepath="/home/ewilcox/bin/"
+proj_root="/discover/nobackup/projects/cloudclass/"
+modis_root="/nfs3m/css/curated01/modis/data/Collection6.1/"
+merra_root="/css/merra2/"
+maskpath="/home/ewilcox/NASA_measures/"
+listpath_root="/home/ewilcox/NASA_measures/filelists/"
+tropical_flag=1
+
+import subprocess
+from multiprocessing import Pool
+import time_tools3 as tt
+import measures_setup as setup
+
+def call_measures_clouds(mod06file):
+	(latmin,latmax,lonmin,lonmax) = setup.get_grid_bounds(modpath,mod06file)
+#	cmd = "{0}measures_clouds_BR {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12} {13} {14}".format(exepath,
+	cmd = "{0}measures_clouds {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12} {13} {14}".format(exepath,
+			mod06file, modpath, mod02path, mod03path, merrapath, amsrpath, mod08path, maskpath, 
+			listpath_root, outpath, latmin, latmax, lonmin, lonmax)
+#	print("{0} {1}".format(mod06file,abs(latmin)))
+	if ( tropical_flag and ( (abs(latmin)<20.) or (abs(latmax)<20.) ) ):
+		tmp = subprocess.run(cmd,shell=True,stdout=subprocess.PIPE)
+
+for yr in yrlist:
+	cmd = "mkdir {0}/{1}".format(outpath_root,yr)
+	tmp = subprocess.run(cmd,shell=True,stdout=subprocess.PIPE)
+
+#	for month in range(1,13):
+	for month in mnlist:
+		if (month<10):
+			mth_str="0{0}".format(month)
+		else:
+			mth_str=str(month)
+		outpath = "{0}/{1}/{2}/".format(outpath_root,yr,mth_str)
+		cmd = "mkdir {0}".format(outpath)
+		tmp = subprocess.run(cmd,shell=True,stdout=subprocess.PIPE)
+		
+		for day in range(1,tt.NumberDaysMonth(month,yr)+1):
+			doy = tt.JDNumberToDOY(tt.mdyhmsToJDNumber(month,day,yr,6,0,0))
+			doystr = str(doy)
+			if (doy<100):
+				doystr = "0" + doystr
+			if (doy<10):
+				doystr = "0" + doystr
+			(modpath, mod02path, mod03path, merrapath, amsrpath,
+						mod08path) = setup.get_data_paths_css(yr, month, day, proj_root, modis_root, merra_root)
+			if (create_list_flag):
+				setup.write_filelists_css(yr, month, day, listpath_root, modpath, mod02path, mod03path, mod08path, amsrpath)
+
+			modlistpath = "{0}MODIS_{1}/{2}/".format(listpath_root,yr,doystr)
+
+			with open(modlistpath+listfile) as f:
+				mod06files = [line.rstrip('\n') for line in f]
+
+			p = Pool(ncpus)
+			p.map(call_measures_clouds, mod06files)
+			p.close()
+			p.join()
+
+		cmd = "ls {0}modis_clouds* | grep '............'.${{CASEID}}.nc | ncrcat -H -o {1}test.nc".format(outpath,outpath)
+		tmp = subprocess.run(cmd,shell=True,stdout=subprocess.PIPE)
+		cmd = "mv {0}test.nc {1}modis_clouds.{2}{3}.nc".format(outpath,outpath,yr,mth_str)
+		tmp = subprocess.run(cmd,shell=True,stdout=subprocess.PIPE)
+#		cmd = "mv {0}IR_brightness_temperature_bins.nc {1}tropical_test/.".format(outpath,outpath)
+#		tmp = subprocess.run(cmd,shell=True,stdout=subprocess.PIPE)
